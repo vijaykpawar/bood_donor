@@ -1,0 +1,60 @@
+package com.mwt.ir21.util.interceptors;
+
+import javax.servlet.http.HttpServletResponse;
+
+import org.apache.struts2.StrutsStatics;
+
+import com.opensymphony.xwork2.ActionContext;
+import com.opensymphony.xwork2.ActionInvocation;
+import com.opensymphony.xwork2.interceptor.Interceptor;
+
+/**
+ * The Class CacheInterceptor.
+ * 
+ * @author Rohan Jamkhedkar
+ */
+public class CacheInterceptor implements Interceptor {
+
+	/** The Constant serialVersionUID. */
+	private static final long serialVersionUID = 4653655374671917012L;
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see com.opensymphony.xwork2.interceptor.Interceptor#destroy()
+	 */
+	@Override
+	public void destroy() {
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see com.opensymphony.xwork2.interceptor.Interceptor#init()
+	 */
+	@Override
+	public void init() {
+		System.out.println("Cache Interceptor");
+	}
+
+	/**
+	 * Sets Clear Cache Headers To Every Request.
+	 *
+	 * @param invocation the invocation
+	 * @return the string
+	 * @throws Exception the exception
+	 * @see com.opensymphony.xwork2.interceptor.Interceptor#intercept(com.opensymphony
+	 * .xwork2.ActionInvocation)
+	 */
+	@Override
+	public String intercept(ActionInvocation invocation) throws Exception {
+		ActionContext context = (ActionContext) invocation.getInvocationContext();
+		HttpServletResponse response = (HttpServletResponse) context.get(StrutsStatics.HTTP_RESPONSE);
+		response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+		response.setHeader("Pragma", "no-cache");
+		response.setDateHeader("Expires", 0);
+		String result = invocation.invoke();
+		return result;
+	}
+
+}

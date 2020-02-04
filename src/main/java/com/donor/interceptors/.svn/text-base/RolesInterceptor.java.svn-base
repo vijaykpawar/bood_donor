@@ -1,0 +1,89 @@
+package com.mwt.ir21.util.interceptors;
+
+import java.util.Map;
+
+import org.apache.log4j.Logger;
+import org.apache.struts2.dispatcher.SessionMap;
+
+import com.mwt.ir21.bean.User;
+import com.mwt.ir21.bo.LoginBO;
+import com.mwt.ir21.util.Constants;
+import com.mwt.ir21.util.Util;
+import com.opensymphony.xwork2.ActionInvocation;
+import com.opensymphony.xwork2.ActionSupport;
+import com.opensymphony.xwork2.config.entities.ActionConfig;
+import com.opensymphony.xwork2.interceptor.Interceptor;
+
+/**
+ * The Class RolesInterceptor.
+ * 
+ * @author Rohan Jamkhedkar
+ */
+public class RolesInterceptor implements Interceptor {
+
+	/** The Constant serialVersionUID. */
+	private static final long serialVersionUID = 1772252774913186186L;
+	
+	/** The Constant logger. */
+	private static final Logger logger = Logger.getLogger(RolesInterceptor.class);
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see com.opensymphony.xwork2.interceptor.Interceptor#destroy()
+	 */
+	@Override
+	public void destroy() {
+
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see com.opensymphony.xwork2.interceptor.Interceptor#init()
+	 */
+	@Override
+	public void init() {
+		logger.info("Starting init method in rolesInterceptor");
+		try {
+			//Util.createModuleRec();
+			Util.createAdminUser();
+		} catch (Exception e) {
+			logger.error("Error Creating Modules", e);
+		}
+	}
+
+	/**
+	 * Checks Role of the logged in User to see whether he has access to current
+	 * action. Must Be Used After Authentication Interceptor
+	 *
+	 * @param invocation the invocation
+	 * @return the string
+	 * @throws Exception the exception
+	 * @see com.opensymphony.xwork2.interceptor.Interceptor#intercept(com.opensymphony
+	 * .xwork2.ActionInvocation)
+	 */
+	@Override
+	public String intercept(ActionInvocation invocation) throws Exception {
+		ActionConfig config = invocation.getProxy().getConfig();
+		Map<String, String> params = config.getParams();
+		String rolelist=params.get("roleList");
+		String [] roles=null;
+		if(rolelist!=null)
+		{
+			roles=rolelist.split(",");
+		}
+		if(roles !=null){
+			User user = (User) invocation.getInvocationContext().getSession().get(Constants.LOGGEDINUSER);
+			boolean result = new LoginBO().authoriseUser(user, roles);
+			if(result)
+				return invocation.invoke();
+			else
+				((ActionSupport)invocation.getAction()).addActionError(((ActionSupport)invocation.getAction()).getText("login.invalid.access"));
+		}
+		invocation.getInvocationContext().getSession().remove(Constants.LOGGEDINUSER);
+		((SessionMap<String, Object>)invocation.getInvocationContext().getSession()).invalidate();
+		logger.error("Something's Not Right! Returning to login page. Please Check Struts Action Configuration");
+		return "login";
+	}
+}

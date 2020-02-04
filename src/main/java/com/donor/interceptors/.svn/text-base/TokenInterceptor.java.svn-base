@@ -1,0 +1,87 @@
+/**
+ * 
+ */
+package com.mwt.ir21.util.interceptors;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpSession;
+
+import org.apache.log4j.Logger;
+import org.apache.struts2.StrutsStatics;
+
+
+import com.mwt.ir21.util.Constants;
+import com.mwt.ir21.util.RandomStringGenerator;
+import com.opensymphony.xwork2.ActionContext;
+import com.opensymphony.xwork2.ActionInvocation;
+import com.opensymphony.xwork2.interceptor.Interceptor;
+
+/**
+ * The Class TokenInterceptor.
+ *
+ * @author Rohan Jamkhedkar
+ */
+public class TokenInterceptor implements Interceptor {
+
+	/** The Constant serialVersionUID. */
+	private static final long serialVersionUID = -7550225657886076487L;
+	
+	/** The Constant logger. */
+	private static final Logger logger = Logger.getLogger(TokenInterceptor.class);
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see com.opensymphony.xwork2.interceptor.Interceptor#destroy()
+	 */
+	@Override
+	public void destroy() {
+
+	}
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see com.opensymphony.xwork2.interceptor.Interceptor#init()
+	 */
+	@Override
+	public void init() {
+
+	}
+
+	/**
+	 * This method Check Request For Unique Token. If this Token is matched with
+	 * Token in Session, request is allowed to be processed. Otherwise user is
+	 * logged out.
+	 *
+	 * @param invocation the invocation
+	 * @return the string
+	 * @throws Exception the exception
+	 * @see com.opensymphony.xwork2.interceptor.Interceptor#intercept(com.opensymphony.xwork2.ActionInvocation)
+	 */
+	@Override
+	public String intercept(ActionInvocation invocation) throws Exception {
+		String newToken = RandomStringGenerator.getInstance().getNextRandomString(6);
+		ActionContext context = (ActionContext) invocation.getInvocationContext();
+		HttpServletRequest request = (HttpServletRequest) context.get(StrutsStatics.HTTP_REQUEST);
+
+		String requestToken = request.getParameter(Constants.TOKEN);
+
+		HttpSession session = request.getSession();
+		String sessionToken = (String) session.getAttribute(Constants.TOKEN);
+
+		if (sessionToken != null) {
+			logger.info("Session Token: " + sessionToken + " Request Token: " + requestToken);
+			if (requestToken != null && !(requestToken.equals(sessionToken))) {
+				session.invalidate();
+				logger.error("Invalid Token. User Logged Out.");
+				return "invalid.token";
+			} else {
+				session.setAttribute(Constants.TOKEN, newToken);
+				return invocation.invoke();
+			}
+		}
+		return "invalid.token";
+	}
+
+}

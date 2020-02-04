@@ -1,0 +1,531 @@
+package com.mwt.umap.configuration;
+
+import java.io.InputStream;
+import java.lang.reflect.Constructor;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.HashMap;
+
+
+import javax.xml.bind.JAXBContext;
+import javax.xml.bind.Unmarshaller;
+
+import org.apache.log4j.Logger;
+
+import com.mwt.umap.configuration.bean.Umap;
+import com.mwt.umap.configuration.bean.Umap.Beans.Bean;
+import com.mwt.umap.configuration.bean.Umap.Configs.Config;
+import com.mwt.umap.configuration.bean.Umap.DefaultQueueRequestProcessors.Processor;
+import com.mwt.umap.configuration.bean.Umap.ImageMapping.BucketList.Bucket;
+import com.mwt.umap.configuration.bean.Umap.ImageMapping.ResizerMappingList.ResizerMapping;
+import com.mwt.umap.configuration.bean.Umap.UmapServices.Service;
+import com.mwt.umap.configuration.bean.Umap.WebServices.WebService;
+import com.mwt.umap.mq.request.IUMAPQueueRequestProcessor;
+import com.mwt.umap.service.IUMAPService;
+
+/**
+ * This Class is used handle UMAP System configuration.
+ * 
+ * <p>
+ * umap-default.xml and umap.xml files are processed by this class and an in-memory Configuration is created. 
+ * umap-default.xml contains default configuration for umap which can be overridden by the developer using umap.xml.
+ * </p>
+ *  
+ */
+public final class ConfigurationManager {
+
+	/** The Constant LOG. */
+	private static final Logger LOG = Logger.getLogger(ConfigurationManager.class);
+
+	/** The Constant DEFAULT_CONFIG_FILE. */
+	private static final String DEFAULT_CONFIG_FILE = "umap-default.xml";
+	
+	/** The Constant USER_CONFIG_FILE. */
+	private static final String USER_CONFIG_FILE = "umap.xml";
+
+	/** The inst. */
+	private static ConfigurationManager inst;
+
+	/** The configuration. */
+	private Umap configuration;
+	
+	/** The unmarshaller. */
+	private Unmarshaller unmarshaller;
+
+	private static Object lock = new Object() ;
+	
+	private static HashMap <String, Constructor<IUMAPService>> serviceRepo = new HashMap <String, Constructor<IUMAPService>>() ;
+	
+	
+	/**
+	 * Instantiates a new configuration manager.
+	 *
+	 * @throws Exception the exception
+	 */
+	private ConfigurationManager() throws Exception {
+		JAXBContext context = JAXBContext.newInstance(Umap.class);
+		unmarshaller = context.createUnmarshaller();
+		//System.out.println("Unmarshaller: " + unmarshaller);
+		loadDefaultConfiguration();
+		loadUserConfig();
+	}
+
+	/**
+	 * Load default configuration.
+	 *
+	 * @throws Exception the exception
+	 */
+	private void loadDefaultConfiguration() throws Exception {
+		if (unmarshaller != null) {
+			InputStream is = this.getClass().getClassLoader().getResourceAsStream(DEFAULT_CONFIG_FILE);
+			//System.out.println("IS first: " + is);
+			if (is != null) {
+				configuration = (Umap) unmarshaller.unmarshal(is);
+				//System.out.println("Config First: " + configuration);
+			} else {
+				throw new IllegalAccessException("Configuration file not found");
+			}
+		}
+	}
+
+	/**
+	 * Load user configuration.
+	 *
+	 * @throws Exception the exception
+	 */
+	private void loadUserConfig() throws Exception {
+		if (unmarshaller != null && configuration != null) {
+			InputStream is = this.getClass().getClassLoader().getResourceAsStream(USER_CONFIG_FILE);
+			//System.out.println("IS second: " + is);
+			if (is != null) {
+				Umap userConfiguration = (Umap) unmarshaller.unmarshal(is);
+				//System.out.println("Config Second: " + userConfiguration);
+				copyFromUserConfig(userConfiguration);
+			} else {
+				throw new IllegalAccessException("User Configuration file not found");
+			}
+		}
+	}
+
+	/**
+	 * Copy from user configuration.
+	 *
+	 * @param userConfiguration the user configuration
+	 * @throws Exception the exception
+	 */
+	private void copyFromUserConfig(Umap userConfiguration) throws Exception {
+		try {
+			if (configuration != null) {
+				//System.out.println("User App type: " + userConfiguration.getApplicationType());
+				if(userConfiguration.getApplicationType() != null){
+					configuration.setApplicationType(userConfiguration.getApplicationType());
+					//System.out.println("After set: " + configuration.getApplicationType());
+				}
+				if(userConfiguration.getImageServerUrl() != null) {
+					configuration.setImageServerUrl(userConfiguration.getImageServerUrl());
+				}
+				if(userConfiguration.getNetcallServerUrl() != null)
+				{
+					configuration.setNetcallServerUrl(userConfiguration.getNetcallServerUrl());
+				}
+				if(userConfiguration.getUmapEncryptionKey() != null)
+				{
+					configuration.setUmapEncryptionKey(userConfiguration.getUmapEncryptionKey());
+				}
+
+				if (userConfiguration.getBeans() != null && userConfiguration.getBeans().getBean() != null) {
+					for (Bean bean : userConfiguration.getBeans().getBean()) {
+						for (Bean bean1 : configuration.getBeans().getBean()) {
+							if (bean1.getName().equals(bean.getName())) {
+								bean1.setValue(bean.getValue());
+							}
+						}
+					}
+				}
+
+				if (userConfiguration.getConfigs() != null && userConfiguration.getConfigs().getConfig() != null) {
+					for (Config config : userConfiguration.getConfigs().getConfig()) {
+						boolean presentInOriginal = false;
+						for (Config config1 : configuration.getConfigs().getConfig()) {
+							if (config1.getName().equals(config.getName())) {
+								presentInOriginal = true;
+								config1.setValue(config.getValue());
+							}
+						}
+						if (!presentInOriginal) {
+							configuration.getConfigs().getConfig().add(config);
+						}
+					}
+				}
+
+				if (userConfiguration.getUmapServices() != null
+						&& userConfiguration.getUmapServices().getService() != null) {
+					configuration.getUmapServices().getService()
+							.addAll(userConfiguration.getUmapServices().getService());
+				}
+				if (userConfiguration.getWebServices() != null
+						&& userConfiguration.getWebServices().getWebService() != null) {
+					configuration.getWebServices().getWebService()
+							.addAll(userConfiguration.getWebServices().getWebService());
+				}
+
+				if (userConfiguration.getDefaultQueueRequestProcessors() != null
+						&& userConfiguration.getDefaultQueueRequestProcessors().getProcessor() != null) {
+					for (Processor processor : userConfiguration.getDefaultQueueRequestProcessors().getProcessor()) {
+						boolean presentInOriginal = false;
+						for (Processor processor1 : configuration.getDefaultQueueRequestProcessors().getProcessor()) {
+							if (processor1.getName().equals(processor.getName())) {
+								presentInOriginal = true;
+								processor1.setValue(processor.getValue());
+							}
+						}
+						if (!presentInOriginal) {
+							configuration.getDefaultQueueRequestProcessors().getProcessor().add(processor);
+						}
+					}
+				}
+
+				if (userConfiguration.getImageMapping() != null) {
+					if (userConfiguration.getImageMapping().getBucketList() != null
+							&& userConfiguration.getImageMapping().getBucketList().getBucket() != null) {
+						for (Bucket bucket : userConfiguration.getImageMapping().getBucketList().getBucket()) {
+							boolean presentInOriginal = false;
+							for (Bucket bucket1 : configuration.getImageMapping().getBucketList().getBucket()) {
+								if (bucket1.getId() == bucket.getId()) {
+									presentInOriginal = true;
+									bucket1.setHeight(bucket.getHeight());
+									bucket1.setOs(bucket.getOs());
+									bucket1.setWidth(bucket.getWidth());
+								}
+							}
+							if (!presentInOriginal) {
+								userConfiguration.getImageMapping().getBucketList().getBucket().add(bucket);
+							}
+						}
+					}
+
+					if (userConfiguration.getImageMapping().getResizerMappingList() != null
+							&& userConfiguration.getImageMapping().getResizerMappingList().getResizerMapping() != null) {
+						for (ResizerMapping mapping : userConfiguration.getImageMapping().getResizerMappingList()
+								.getResizerMapping()) {
+							boolean presentInOriginal = false;
+							for (ResizerMapping mapping1 : configuration.getImageMapping().getResizerMappingList()
+									.getResizerMapping()) {
+								if (mapping1.getQuality() == mapping.getQuality()
+										&& mapping1.getRequiredHeight() == mapping.getRequiredHeight()
+										&& mapping1.getRequiredWidth() == mapping.getRequiredWidth()) {
+									presentInOriginal = true;
+									if (mapping.getBucketId() != null) {
+										mapping1.getBucketId().removeAll(mapping1.getBucketId());
+										mapping1.getBucketId().addAll(mapping.getBucketId());
+									}
+
+									if (mapping.getUrlPattern() != null) {
+										mapping1.getUrlPattern().removeAll(mapping1.getUrlPattern());
+										mapping1.getUrlPattern().addAll(mapping.getUrlPattern());
+									}
+								}
+							}
+							if (!presentInOriginal) {
+								userConfiguration.getImageMapping().getResizerMappingList().getResizerMapping()
+										.add(mapping);
+							}
+						}
+					}
+				}
+
+			} else {
+				System.out.println("Configuration null");
+			}
+		} catch (Exception e) {
+			throw e;
+		}
+	}
+
+	/**
+	 * Gets the single instance of ConfigurationManager.
+	 *
+	 * @return single instance of ConfigurationManager
+	 */
+	public static ConfigurationManager getInstance() {
+		if (inst == null) {
+			try {
+				synchronized (lock) {
+					inst = new ConfigurationManager();	
+				}
+			} catch (Exception e) {
+				LOG.error("getInstance", e);
+			}
+		}
+		return inst;
+	}
+	
+	
+	/**
+	 * Gets the application type.
+	 *
+	 * @return the application type
+	 */
+	public String getApplicationType() {
+		return configuration.getApplicationType();
+	}
+	
+	/**
+	 * Gets the netcall server url.
+	 *
+	 * @return the netcall server url
+	 */
+	public String getNetcallServerUrl() {
+		return configuration.getNetcallServerUrl();
+	}
+	
+	/**
+	 * Gets the image server url.
+	 *
+	 * @return the image server url
+	 */
+	public String getImageServerUrl() {
+		return configuration.getImageServerUrl();
+	}
+	
+	/**
+	 * Gets the umap encryption key.
+	 *
+	 * @return the umap encryption key
+	 */
+	public String getUmapEncryptionKey() {
+		return configuration.getUmapEncryptionKey().trim();
+	}
+
+	/**
+	 * Gets the system configuration.
+	 *
+	 * @param key the key
+	 * @return the system config
+	 */
+	public String getSystemConfig(String key) {
+		if (key != null) {
+			for (Config conf : configuration.getConfigs().getConfig()) {
+				if (conf.getName().equals(key)) {
+					return conf.getValue();
+				}
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Gets the system configuration.
+	 *
+	 * @param key the key
+	 * @param defaultValue the default value
+	 * @return the system config
+	 */
+	public String getSystemConfig(String key, String defaultValue) {
+		String val = getSystemConfig(key);
+		if (val == null) {
+			return defaultValue;
+		}
+		return val;
+	}
+
+	/**
+	 * Gets the umap service.
+	 *
+	 * @param serviceName the service name
+	 * @return the service
+	 */
+	
+	
+	@SuppressWarnings("unchecked")
+	public Constructor<IUMAPService> getService(String serviceName) {
+		if (serviceName != null) {
+			Constructor<IUMAPService> cls = serviceRepo.get(serviceName) ;
+			
+			if(cls != null)
+				return cls ;
+			
+			for (Service service : configuration.getUmapServices().getService()) {
+				if (service.getName().equalsIgnoreCase(serviceName)) {
+					try {
+						cls = (Constructor<IUMAPService>) Class.forName(service.getValue()).getConstructor(
+								String.class);
+						serviceRepo.put(serviceName, cls) ;
+						return cls ;
+					} catch (Exception e) {
+						return null;
+					}
+				}
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Gets the bean.
+	 *
+	 * @param key the key
+	 * @return the bean
+	 * @throws Exception the exception
+	 */
+	public Class<?> getBean(String key) throws Exception {
+		if (key != null) {
+			for (Bean bean : configuration.getBeans().getBean()) {
+				if (bean.getName().equals(key)) {
+					if (bean.getValue().size() == 1) {
+						return Class.forName(bean.getValue().get(0));
+					} else {
+						throw new IllegalAccessException("More than one values found for given key");
+					}
+				}
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Gets the beans.
+	 *
+	 * @param key the key
+	 * @return the beans
+	 * @throws Exception the exception
+	 */
+	public List<Class<?>> getBeans(String key) throws Exception {
+		if (key != null) {
+
+			for (Bean bean : configuration.getBeans().getBean()) {
+				if (bean.getName().equals(key)) {
+					List<Class<?>> clsList = new ArrayList<Class<?>>();
+					if (bean.getValue().size() > 0) {
+						for (String cls : bean.getValue()) {
+							clsList.add(Class.forName(cls));
+						}
+						return clsList;
+					}
+				}
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Gets the webservice config from key.
+	 *
+	 * @param key the key
+	 * @return the webservice config
+	 */
+	public Umap.WebServices.WebService getWebserviceConfig(String key) {
+		if (key != null) {
+			for (WebService ws : configuration.getWebServices().getWebService()) {
+				if (ws.getName().equals(key)) {
+					return ws;
+				}
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Gets the webservice config from url.
+	 *
+	 * @param originalUrl the original url
+	 * @return the webservice config from url
+	 */
+	public Umap.WebServices.WebService getWebserviceConfigFromUrl(String originalUrl) {
+		if (originalUrl != null) {
+			for (WebService ws : configuration.getWebServices().getWebService()) {				
+				WebService base = getWebserviceConfig(ws.getBaseUrlName());
+				String completeUrl = null;
+				if(base != null) {
+					completeUrl = base.getUrl() + ws.getUrl();
+				} else {
+					completeUrl = ws.getUrl();
+				}				
+				if (completeUrl.equals(originalUrl)) {
+					return ws;
+				}
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Find matching image resizer.
+	 *
+	 * @param bucketId the bucket id
+	 * @param originalUrl the original url
+	 * @return the umap. image mapping. resizer mapping list. resizer mapping
+	 */
+	public Umap.ImageMapping.ResizerMappingList.ResizerMapping findMatchingResizer(Integer bucketId, String originalUrl) {
+		if (bucketId != null && originalUrl != null) {
+			for (ResizerMapping mapping : configuration.getImageMapping().getResizerMappingList().getResizerMapping()) {
+				if (mapping.getBucketId().contains(bucketId)) {
+					boolean containsAll = true;
+					for (String pattern : mapping.getUrlPattern()) {
+						if (!originalUrl.contains(pattern)) {
+							containsAll = false;
+						}
+					}
+					if (containsAll) {
+						return mapping;
+					}
+				}
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Find matching image bucket.
+	 *
+	 * @param os the os
+	 * @param height the height
+	 * @param width the width
+	 * @return the umap. image mapping. bucket list. bucket
+	 */
+	public Umap.ImageMapping.BucketList.Bucket findMatchingBucket(String os, int height, int width) {
+		if (os != null && height > 0 && width > 0) {
+			for (Bucket bucket : configuration.getImageMapping().getBucketList().getBucket()) {
+				if (bucket.getOs().equalsIgnoreCase(os) && height >= bucket.getHeight().getStart()
+						&& height <= bucket.getHeight().getEnd() && width >= bucket.getWidth().getStart()
+						&& width <= bucket.getWidth().getEnd()) {
+					return bucket;
+				}
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Gets the queue request processor.
+	 *
+	 * @param key the key
+	 * @return the queue request processor
+	 */
+	@SuppressWarnings("unchecked")
+	public Class<? extends IUMAPQueueRequestProcessor> getQueueRequestProcessor(String key) {
+		if (key != null) {
+			for (Processor processor : configuration.getDefaultQueueRequestProcessors().getProcessor()) {
+				if (processor.getName().equals(key)) {
+					Class<? extends IUMAPQueueRequestProcessor> cls = null;
+					try {
+						cls = (Class<? extends IUMAPQueueRequestProcessor>) Class.forName(processor.getValue());
+					} catch (Exception e) {
+						cls = null;
+					}
+					return cls;
+				}
+			}
+		}
+		return null;
+	}
+
+	protected Umap getConfiguration() {
+		return configuration;
+	}
+
+	protected void setConfiguration(Umap configuration) {
+		this.configuration = configuration;
+	}
+
+}

@@ -1,0 +1,68 @@
+package com.mwt.ir21.util.interceptors;
+
+import java.util.Date;
+
+import org.apache.log4j.Logger;
+import org.apache.struts2.dispatcher.SessionMap;
+
+import com.mwt.ir21.bean.User;
+import com.mwt.ir21.util.Constants;
+import com.opensymphony.xwork2.ActionInvocation;
+import com.opensymphony.xwork2.interceptor.Interceptor;
+
+/**
+ * The Class AuthenticationInterceptor.
+ * 
+ * @author Rohan Jamkhedkar
+ */
+public class AuthenticationInterceptor implements Interceptor {
+
+	/** The Constant serialVersionUID. */
+	private static final long serialVersionUID = -8526967800972160896L;
+
+	/** The Constant logger. */
+	private static final Logger logger = Logger.getLogger(AuthenticationInterceptor.class);
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see com.opensymphony.xwork2.interceptor.Interceptor#destroy()
+	 */
+	@Override
+	public void destroy() {
+
+	}
+
+	/**
+	 * Prints Version Information to logs.
+	 * 
+	 * @see com.opensymphony.xwork2.interceptor.Interceptor#init()
+	 */
+	@Override
+	public void init() {
+		logger.info("init[] IR21 Application version 1.11. Created: 28-04-2012 15:15. Time Deployed: " + new Date(System.currentTimeMillis()).toString());
+	}
+
+	/**
+	 * Checks Whether User is Logged in before every Request.
+	 *
+	 * @param invocation the invocation
+	 * @return the string
+	 * @throws Exception the exception
+	 * @see com.opensymphony.xwork2.interceptor.Interceptor#intercept(com.opensymphony
+	 * .xwork2.ActionInvocation)
+	 */
+	@Override
+	public String intercept(ActionInvocation invocation) throws Exception {
+		User user = (User) invocation.getInvocationContext().getSession().get(Constants.LOGGEDINUSER);
+		if (user != null) {
+			return invocation.invoke();
+		} else {
+			invocation.getInvocationContext().getSession().remove(Constants.LOGGEDINUSER);
+			((SessionMap<String, Object>)invocation.getInvocationContext().getSession()).invalidate();
+			logger.error("User Not Logged In");
+			return "login";
+		}
+	}
+
+}

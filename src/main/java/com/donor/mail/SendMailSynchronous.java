@@ -1,0 +1,204 @@
+package com.donor.mail;
+
+import java.io.File;
+import java.util.Properties;
+
+import javax.mail.Address;
+import javax.mail.Message;
+import javax.mail.Multipart;
+import javax.mail.Session;
+import javax.mail.Transport;
+import javax.mail.internet.InternetAddress;
+import javax.mail.internet.MimeBodyPart;
+import javax.mail.internet.MimeMessage;
+import javax.mail.internet.MimeMultipart;
+
+import org.apache.log4j.Logger;
+
+import com.donor.config.ConfigKey;
+import com.donor.dao.PropertyDataLoader;
+
+/**
+ * This class sends mail synchronously. 
+ * 
+ * <p>
+ * This class reads SMTP server properties from umap.xml. You should include following properties in umap.xml. 
+ *  <ul>
+ *  <li>smtp.auth.user</li>
+ *  <li>smtp.host</li>
+ *  <li>smtp.auth.pwd</li>
+ *  <li>smpt.from</li>
+ *  <li>smtp.fromName</li>
+ *  <li>smtp.replyTo</li>
+ *  <li>smpt.port</li>
+ *  <li>smtp.auth.useauth</li>
+ *  <li>smtp.useSsl</li>
+ *  <li>smtp.SSLSocketFactory.class</li>
+ *  </ul>
+ * 
+ * 
+ * @author Ruchita Bhamare
+ */
+public class SendMailSynchronous {
+
+	/** The logger. */
+	private final Logger log = Logger.getLogger(SendMailSynchronous.class);
+
+	/** The reply to. */
+	private static String user, host, password, from, fromName, replyTo;
+
+	/** The props. */
+	private static Properties props = new Properties();
+
+	static {
+		user = PropertyDataLoader.getInstance().getMessage(ConfigKey.SMTP_USER);
+		host =  PropertyDataLoader.getInstance().getMessage(ConfigKey.SMTP_HOST);
+		password =  PropertyDataLoader.getInstance().getMessage(ConfigKey.SMTP_PASSWORD);
+		from =  PropertyDataLoader.getInstance().getMessage(ConfigKey.SMTP_FROM);
+		fromName =  PropertyDataLoader.getInstance().getMessage(ConfigKey.SMTP_FROMNAME);
+		replyTo = PropertyDataLoader.getInstance().getMessage(ConfigKey.SMTP_REPLYTO);
+		props.put("mail.smtp.user", user);
+		props.put("mail.smtp.host", host);
+		props.put("mail.smtp.port",  PropertyDataLoader.getInstance().getMessage(ConfigKey.SMTP_PORT));
+		props.put("mail.smtp.auth",  PropertyDataLoader.getInstance().getMessage(ConfigKey.SMTP_USEAUTH));
+		props.put("mail.smtp.starttls.enable", "true");
+		props.put("mail.smtp.debug", "true");
+		props.put("mail.smtp.socketFactory.port", PropertyDataLoader.getInstance().getMessage(ConfigKey.SMTP_PORT));
+
+		if ("true".equalsIgnoreCase( PropertyDataLoader.getInstance().getMessage(ConfigKey.SMTP_USESSL))) {
+			props.put("mail.smtp.socketFactory.class",  PropertyDataLoader.getInstance().getMessage(ConfigKey.SOCKET_FACTORY_CLASS));
+		}
+		props.put("mail.smtp.socketFactory.fallback", "false");
+	}
+
+	/**
+	 * Send mail.
+	 * 
+	 * @param to
+	 *            the to
+	 * @param cc
+	 *            the cc
+	 * @param bcc
+	 *            the bcc
+	 * @param subject
+	 *            the subject
+	 * @param text
+	 *            the text
+	 * @param files
+	 *            the files
+	 * @return true, if successful
+	 * @throws Exception
+	 *             the exception
+	 */
+	public boolean sendMail(final String[] to, final String[] cc, final String[] bcc, final String subject, final String text, final File[] files)
+			throws Exception {
+		log.debug("Beginning Method: sendMail()");
+		try {
+			Session session = Session.getDefaultInstance(props, null);
+			session.setDebug(true);
+			Address[] replyAdd = { new InternetAddress(replyTo) };
+			MimeMessage msg = new MimeMessage(session);
+			msg.setSubject(subject);
+			msg.setFrom(new InternetAddress(from, fromName));
+			msg.setReplyTo(replyAdd);
+			for (int i = 0; i < to.length; i++) {
+				msg.addRecipient(Message.RecipientType.TO, new InternetAddress(to[i]));
+			}
+			for (int i = 0; i < cc.length; i++) {
+				msg.addRecipient(Message.RecipientType.CC, new InternetAddress(cc[i]));
+			}
+			for (int i = 0; i < bcc.length; i++) {
+				msg.addRecipient(Message.RecipientType.BCC, new InternetAddress(bcc[i]));
+			}
+
+			if (files != null && files.length > 0) {
+				Multipart mp = new MimeMultipart();
+
+				MimeBodyPart messagePart = new MimeBodyPart();
+				messagePart.setText(text);
+				mp.addBodyPart(messagePart);
+
+				for (int i = 0; i < files.length; i++) {
+					MimeBodyPart pdfFile = new MimeBodyPart();
+					pdfFile.attachFile(files[i]);
+					pdfFile.setHeader("contentType", "application/octate-stream");
+					pdfFile.setFileName(files[i].getName());
+					mp.addBodyPart(pdfFile);
+				}
+				msg.setContent(mp);
+			} else {
+				msg.setText(text);
+			}
+
+			msg.saveChanges();
+			if ("true".equalsIgnoreCase( PropertyDataLoader.getInstance().getMessage(ConfigKey.SMTP_USEPWD))) {
+				System.out.println("inside pwd auth needed");
+				Transport transport = session.getTransport("smtp");
+				log.trace("Here1 pwd auth needed transport sendmailmy");
+				transport.connect(host, user, password);
+				log.trace("Here2 pwd auth needed connect sendmailmy");
+				transport.sendMessage(msg, msg.getAllRecipients());
+				log.trace("Here3 pwd auth needed sendmessage sendmailmy");
+				transport.close();
+				log.trace("Here4 pwd auth needed close sendmailmy ");
+			} else {
+				Transport transport = session.getTransport("smtp");
+				log.trace("Here1 pwd auth not needed transport sendmailmy");
+				transport.sendMessage(msg, msg.getAllRecipients());
+				log.trace("Here3 pwd auth not needed sendmessage sendmailmy");
+			}
+			log.debug("Ending Method: sendMail()");
+			return true;
+		} catch (Exception mex) {
+			log.error("Send Mail", mex);
+			return false;
+		}
+	}
+	public static void main(String[] args) throws Exception {
+		new SendMailSynchronous().sendMail("vijay892010@gmail.com", "Test Body", "test Subject");
+	}
+
+	/**
+	 * Send mail with file.
+	 * 
+	 * @param emailId
+	 *            the email id
+	 * @param body
+	 *            the body
+	 * @param subject
+	 *            the subject
+	 * @param file
+	 *            the file
+	 * @return true, if successful
+	 * @throws Exception
+	 *             the exception
+	 */
+	public final boolean sendMail(final String emailId, final String body, final String subject, final File file) throws Exception {
+		String[] to = { emailId };
+		String[] cc = {};
+		String[] bcc = {};
+		File[] files = { file };
+		return sendMail(to, cc, bcc, subject, body, files);
+	}
+
+	/**
+	 * Send password mail.
+	 * 
+	 * @param emailId
+	 *            the email id
+	 * @param body
+	 *            the body
+	 * @param subject
+	 *            the subject
+	 * @return true, if successful
+	 * @throws Exception
+	 *             the exception
+	 */
+	public final boolean sendMail(final String emailId, final String body, final String subject) throws Exception {
+		String[] to = { emailId };
+		String[] cc = {};
+		String[] bcc = {};
+		return sendMail(to, cc, bcc, subject, body, null);
+	}
+
+}

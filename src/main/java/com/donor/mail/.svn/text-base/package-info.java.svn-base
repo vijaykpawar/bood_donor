@@ -1,0 +1,4 @@
+/**
+ * Provides utility classes to send mail, synchronously or asynchronously.
+ */
+package com.mwt.umap.mail;

@@ -1,0 +1,130 @@
+<!DOCTYPE struts PUBLIC
+"-//Apache Software Foundation//DTD Struts Configuration 2.0//EN"
+"struts-2.3.dtd">
+<struts>
+	<package name="default" namespace="/" extends="struts-default,json-default">
+
+		<interceptors>
+			<interceptor name="auhenticationInterceptor" class="com.donor.interceptors.AuthenticationInterceptor" />
+			
+			<interceptor-stack name="loginStack">
+				<interceptor-ref name="auhenticationInterceptor" />
+				<interceptor-ref name="defaultStack" />
+			</interceptor-stack>
+			
+		</interceptors>
+		<default-interceptor-ref name="loginStack"/>
+
+		<global-results>
+			<result name="login">index.jsp</result>
+		</global-results>
+
+		<action name="dashboard" class="com.donor.actions.LoginAction"
+			method="dashboard">
+			<result name="success">jsp/dashboard.jsp</result>
+			<result name="error">index.jsp</result>
+		</action>
+
+		<action name="donorDashboard" class="com.donor.actions.LoginAction"
+			method="donorDashboard">
+			<result name="success">jsp/ddashboard.jsp</result>
+			<result name="error">index.jsp</result>
+		</action>
+		<action name="logout" class="com.donor.actions.LoginAction"
+			method="logout">
+			<result name="success">index.jsp</result>
+		</action>
+
+		<action name="register" class="com.donor.actions.LoginAction"
+			method="register">
+			<result name="success">register.jsp</result>
+			<result name="error">index.jsp</result>
+		</action>
+
+		<action name="signIn" class="com.donor.actions.LoginAction"
+			method="signIn">
+			<result name="success">jsp/dashboard.jsp</result>
+			<result name="donor">jsp/ddashboard.jsp</result>
+			<result name="error">index.jsp</result>
+			<result name="input">index.jsp</result>
+		</action>
+
+		<action name="listDonors" class="com.donor.actions.DonorAction"
+			method="listDonors">
+			<result name="success">jsp/listDonors.jsp</result>
+			<result name="input">jsp/dashboard.jsp</result>
+		</action>
+
+		<action name="listDonations" class="com.donor.actions.DonationAction"
+			method="listDonations">
+			<result name="success">jsp/listDonations.jsp</result>
+			<result name="input">jsp/dashboard.jsp</result>
+		</action>
+
+
+		<action name="prepareAddDonor" class="com.donor.actions.DonorAction"
+			method="prepareAddDonor">
+			<result name="success">jsp/addEditDonor.jsp</result>
+			<result name="input">jsp/dashboard.jsp</result>
+		</action>
+
+
+      <action name="prepareAddEditDonation" class="com.donor.actions.DonationAction"
+			method="prepareAddEditDonation">
+			<result name="success">jsp/addEditDonation.jsp</result>
+			<result name="input">jsp/dashboard.jsp</result>
+		</action>
+		
+		
+		<action name="addEditDonation" class="com.donor.actions.DonationAction"
+			method="addEditDonation">
+			<result name="success">jsp/listDonations.jsp</result>
+			<result name="input">jsp/addEditDonation.jsp</result>
+		</action>
+		
+
+		<action name="addEditDonor" class="com.donor.actions.DonorAction"
+			method="addEditDonor">
+			<result name="success">jsp/listDonors.jsp</result>
+			<result name="input">jsp/addEditDonor.jsp</result>
+		</action>
+		<action name="registerDonor" class="com.donor.actions.DonorAction"
+			method="registerDonor">
+			<result name="success">index.jsp</result>
+			<result name="input">register.jsp</result>
+		</action>
+
+
+		<action name="prepareEditDonor" class="com.donor.actions.DonorAction"
+			method="prepareEditDonor">
+			<result name="success">jsp/addEditDonor.jsp</result>
+			<result name="input">jsp/dashboard.jsp</result>
+		</action>
+				
+		<action name="prepareSearch" class="com.donor.actions.DonorAction"
+			method="prepareSearch">
+			<result name="input">jsp/searchDonor.jsp</result>
+			<result name="success">jsp/searchDonor.jsp</result>
+		</action>
+
+		<action name="searchDonor" class="com.donor.actions.DonorAction"
+			method="searchDonor">
+			<result name="input">jsp/searchDonor.jsp</result>
+			<result name="success">jsp/searchDonor.jsp</result>
+		</action>
+
+
+		<action name="prepareAddEditBloodTest" class="com.donor.actions.BloodTestAction"
+			method="prepareAddEditBloodTest">
+			<result name="success">jsp/addEditBloodTest.jsp</result>
+			<result name="input">jsp/dashboard.jsp</result>
+		</action>
+
+		<action name="addEditBloodTest" class="com.donor.actions.BloodTestAction"
+			method="addEditBloodTest">
+			<result name="success">jsp/addEditBloodTest.jsp</result>
+			<result name="input">jsp/addEditBloodTest.jsp</result>
+		</action>
+		
+	</package>
+</struts>
